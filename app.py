@@ -2,6 +2,11 @@ import requests
 import json
 import numpy as np
 import pyaudio
+import os
+from dotenv import load_dotenv
+import pvporcupine
+
+load_dotenv()
 
 OLLAMA_URL = 'http://10.0.0.10:11434/api/generate'
 OLLAMA_MODEL = "llama3:latest"
@@ -9,7 +14,38 @@ OLLAMA_SYSTEM = "Limit your responses to three sentences. You are a voice assist
 
 PIPER_URL = "http://10.0.0.10:5000"
 
+porcupine = pvporcupine.create(
+  access_key=os.environ.get("PICOVOICE_KEY"),
+  keyword_paths=[os.environ.get("PICOVOICE_MODEL_PATH")]
+)
+
 RESPEAKER_INDEX = 1
+
+def listen_for_wake_word():
+    p = pyaudio.PyAudio()
+    stream = p.open(format=pyaudio.paInt16,
+                    channels=1,
+                    rate=16000,
+                    input=True,
+                    input_device_index = RESPEAKER_INDEX,
+                    frames_per_buffer=512)
+
+    print("Listening for wake word...")
+
+    try:
+        while True:
+            pcm = np.frombuffer(stream.read(512), dtype=np.int16)
+
+            # Pass audio buffer to Porcupine to detect the wake word
+            keyword_index = porcupine.process(pcm)
+
+            if keyword_index >= 0:
+                print("Wake word detected!")
+                return True  # Wake word detected, return to continue to the next part
+    finally:
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
 
 def generate_response(prompt):
     payload = {
@@ -53,12 +89,19 @@ def stream_tts(text):
 
 
 if __name__ == "__main__":
+
     while True:
-        user_input = input(">> ")
-        if user_input.lower() == "exit":
-            break
 
-        response = generate_response(user_input)
-        print("AI Response:", response)
+        if listen_for_wake_word():
+            #light on
 
-        stream_tts(response)
+            user_input = input(">> ")
+            if user_input.lower() == "exit":
+                break
+
+            response = generate_response(user_input)
+            print("AI Response:", response)
+
+            stream_tts(response)
+
+            #light off

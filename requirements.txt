@@ -1,3 +1,5 @@
 requests
 numpy
 pyaudio
+python-dotenv
+pvporcupine
