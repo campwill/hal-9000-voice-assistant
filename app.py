@@ -5,6 +5,8 @@ import pyaudio
 import os
 from dotenv import load_dotenv
 import pvporcupine
+from lights import Lights
+import time
 
 load_dotenv()
 
@@ -21,6 +23,8 @@ porcupine = pvporcupine.create(
 
 RESPEAKER_INDEX = 1
 
+lights = Lights()
+
 def listen_for_wake_word():
     p = pyaudio.PyAudio()
     stream = p.open(format=pyaudio.paInt16,
@@ -36,12 +40,11 @@ def listen_for_wake_word():
         while True:
             pcm = np.frombuffer(stream.read(512), dtype=np.int16)
 
-            # Pass audio buffer to Porcupine to detect the wake word
             keyword_index = porcupine.process(pcm)
 
             if keyword_index >= 0:
                 print("Wake word detected!")
-                return True  # Wake word detected, return to continue to the next part
+                return True
     finally:
         stream.stop_stream()
         stream.close()
@@ -89,19 +92,25 @@ def stream_tts(text):
 
 
 if __name__ == "__main__":
-
     while True:
+        try:
+            if listen_for_wake_word():
+                lights.fade_in()
 
-        if listen_for_wake_word():
-            #light on
+                user_input = input(">> ")
+                if user_input.lower() == "exit":
+                    break
 
-            user_input = input(">> ")
-            if user_input.lower() == "exit":
-                break
+                response = generate_response(user_input)
+                print("AI Response:", response)
 
-            response = generate_response(user_input)
-            print("AI Response:", response)
+                stream_tts(response)
 
-            stream_tts(response)
+                lights.fade_out()
+                time.sleep(1)
 
-            #light off
+        except KeyboardInterrupt:
+            break
+
+    lights.off()
+    time.sleep(1)
