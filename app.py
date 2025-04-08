@@ -7,12 +7,18 @@ from dotenv import load_dotenv
 import pvporcupine
 from lights import Lights
 import time
+import audioop
+import wave
+from websocket import create_connection
+import traceback
 
 load_dotenv()
 
 OLLAMA_URL = 'http://10.0.0.10:11434/api/generate'
 OLLAMA_MODEL = "llama3:latest"
 OLLAMA_SYSTEM = "Limit your responses to three sentences. You are a voice assistant. Please refrain from providing unnecessary information."
+
+VOSK_URL = "ws://10.0.0.10:2700"
 
 PIPER_URL = "http://10.0.0.10:5000"
 
@@ -49,6 +55,83 @@ def listen_for_wake_word():
         stream.stop_stream()
         stream.close()
         p.terminate()
+
+def record_prompt():
+    THRESHOLD = 25000
+    SILENCE_DURATION = 3
+
+    p = pyaudio.PyAudio()
+    stream = p.open(format=pyaudio.paInt16,
+                    channels=1,
+                    rate=44100,
+                    input=True,
+                    input_device_index=1,
+                    frames_per_buffer=1024)
+
+    print("Recording...")
+
+    silence_start_time = None
+    silence_counter = 0
+    frames = []
+
+    while True:
+        data = stream.read(1024)
+        frames.append(data)
+
+        rms = audioop.rms(data, 2)
+
+        if rms < THRESHOLD:
+            if silence_start_time is None:
+                silence_start_time = time.time()
+            else:
+                silence_counter = time.time() - silence_start_time
+        else:
+            silence_start_time = None
+            silence_counter = 0
+
+        if silence_counter >= SILENCE_DURATION:
+            print("Silence detected, stopping recording.")
+            break
+
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+
+    output_filename = "output.wav"
+    with wave.open(output_filename, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(p.get_sample_size(pyaudio.paInt16))
+        wf.setframerate(44100)
+        wf.writeframes(b''.join(frames))
+
+    print(f"Recording saved to {output_filename}")
+
+def perform_stt():
+    ws = create_connection(VOSK_URL)
+
+    wf = wave.open("output.wav", "rb")
+    ws.send('{ "config" : { "sample_rate" : %d } }' % (wf.getframerate()))
+    buffer_size = int(wf.getframerate() * 0.2)
+
+    try:
+
+        while True:
+            data = wf.readframes(buffer_size)
+
+            if len(data) == 0:
+                break
+
+            ws.send_binary(data)
+            response = ws.recv()
+            response_json = json.loads(response)
+
+            if "text" in response_json and response_json["text"]:
+                return response_json["text"]
+
+        ws.send('{"eof" : 1}')
+
+    except Exception as err:
+        print(''.join(traceback.format_exception(type(err), err, err.__traceback__)))
 
 def generate_response(prompt):
     payload = {
@@ -97,12 +180,17 @@ if __name__ == "__main__":
             if listen_for_wake_word():
                 lights.fade_in()
 
-                user_input = input(">> ")
-                if user_input.lower() == "exit":
-                    break
+                record_prompt()
+
+                #user_input = input(">> ")
+                #if user_input.lower() == "exit":
+                #    break
+
+                user_input = perform_stt()
+                print(user_input)
 
                 response = generate_response(user_input)
-                print("AI Response:", response)
+                print(response)
 
                 stream_tts(response)
 
