@@ -3,3 +3,5 @@ numpy
 pyaudio
 python-dotenv
 pvporcupine
+spidev
+websocket-client
