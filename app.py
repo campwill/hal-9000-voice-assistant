@@ -11,6 +11,7 @@ import audioop
 import wave
 from websocket import create_connection
 import traceback
+import subprocess
 
 load_dotenv()
 
@@ -175,6 +176,7 @@ def stream_tts(text):
 
 
 if __name__ == "__main__":
+    subprocess.run(["amixer", "-c", "1", "sset", "Speaker", "100%"])
     while True:
         try:
             if listen_for_wake_word():
