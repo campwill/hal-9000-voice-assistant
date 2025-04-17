@@ -246,3 +246,4 @@ I was able to mount the Raspberry Pi in a position where the LED aligned with HA
 - I hope to shorten the response time by exploring ways to optimize the Vosk STT pipeline, such as reducing silence detection lag or modifying WebSocket handling.
 - Additionally, instead of sending three separate requests to my homelab server, I may create a unified API endpoint that handles the STT, LLM, and TTS stages in a single request to minimize network overhead.
 - The audio for the ReSpeaker 2-Mics Pi Hat has also been giving me issues, especially after the Raspberry Pi reboots. I will be tinkering with the ReSpeaker 2-Mics Pi Hat's audio functionality to see if I can fix the volume issues.
+- I would also like to implement home assistant.
